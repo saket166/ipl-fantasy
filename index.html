@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IPL Round Table Fantasy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  /* ===== DESIGN TOKENS ===== */
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a24;
+    --surface: #1e1e2e;
+    --surface2: #252538;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --accent: #f5a623;
+    --accent2: #e8593c;
+    --accent3: #3ecf8e;
+    --text: #f0efe8;
+    --text2: #9896a4;
+    --text3: #5a5870;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --r: 12px;
+    --r-lg: 20px;
+    --shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ===== BACKGROUND TEXTURE ===== */
+  body::before {
+    content:'';
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(245,166,35,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 90%, rgba(62,207,142,0.04) 0%, transparent 50%);
+    pointer-events:none;
+  }
+
+  /* ===== LAYOUT ===== */
+  #app { position:relative; z-index:1; min-height:100vh; }
+
+  .page { display:none; flex-direction:column; align-items:center; min-height:100vh; padding:24px 16px; }
+  .page.active { display:flex; }
+
+  .container { width:100%; max-width:560px; }
+  .container-wide { width:100%; max-width:900px; }
+
+  /* ===== HEADER ===== */
+  .logo {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 8vw, 56px);
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .logo-sub {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 40px;
+  }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 28px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+
+  /* ===== INPUTS ===== */
+  input[type=text] {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  input[type=text]::placeholder { color: var(--text3); }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-radius: var(--r);
+    border: none;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: 100%;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #e8943a);
+    color: #1a0e00;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(245,166,35,0.35); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-success {
+    background: linear-gradient(135deg, var(--accent3), #2ab87a);
+    color: #001a0d;
+  }
+  .btn-danger {
+    background: linear-gradient(135deg, var(--accent2), #c0392b);
+    color: #fff;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+  .btn-sm { padding: 9px 16px; font-size: 12px; width: auto; }
+
+  /* ===== BADGE ===== */
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge-amber { background: rgba(245,166,35,0.15); color: var(--accent); }
+  .badge-green { background: rgba(62,207,142,0.15); color: var(--accent3); }
+  .badge-red   { background: rgba(232,89,60,0.15);  color: var(--accent2); }
+  .badge-gray  { background: var(--surface2); color: var(--text2); }
+
+  /* ===== GAME CODE ===== */
+  .game-code {
+    font-family: var(--font-mono);
+    font-size: 40px;
+    font-weight: 500;
+    letter-spacing: 10px;
+    color: var(--accent);
+    text-align: center;
+    padding: 20px;
+    background: var(--bg3);
+    border-radius: var(--r);
+    border: 1px dashed rgba(245,166,35,0.3);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .game-code:hover { background: rgba(245,166,35,0.06); }
+
+  /* ===== PLAYER LIST ===== */
+  .player-slot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--r);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    transition: all 0.2s;
+  }
+  .player-slot.you { border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.05); }
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .player-name { font-weight: 500; color: var(--text); flex: 1; }
+  .player-label { font-size: 11px; color: var(--text3); }
+
+  /* ===== SPIN WHEEL ===== */
+  #wheel-canvas { display:block; margin: 0 auto; }
+
+  .spin-status {
+    text-align: center;
+    padding: 16px;
+    border-radius: var(--r);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .spin-status .whose-turn {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 1px;
+    color: var(--accent);
+  }
+
+  .rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    font-family: var(--font-display);
+    font-size: 18px;
+    background: rgba(245,166,35,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(245,166,35,0.3);
+    flex-shrink: 0;
+  }
+
+  /* ===== DRAFT ROOM ===== */
+  .draft-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    width: 100%;
+    max-width: 1100px;
+    align-items: start;
+  }
+  @media (max-width: 780px) {
+    .draft-layout { grid-template-columns: 1fr; }
+  }
+
+  .timer-ring {
+    position: relative;
+    width: 90px; height: 90px;
+    margin: 0 auto 16px;
+  }
+  .timer-ring svg { transform: rotate(-90deg); }
+  .timer-ring .time-text {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--accent);
+  }
+
+  .current-picker {
+    text-align: center;
+    padding: 16px;
+    border-radius: var(--r);
+    background: linear-gradient(135deg, rgba(245,166,35,0.1), rgba(232,89,60,0.05));
+    border: 1px solid rgba(245,166,35,0.2);
+    margin-bottom: 16px;
+  }
+  .current-picker .picker-name {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  /* Player board search */
+  .player-board {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    max-height: 600px;
+    overflow-y: auto;
+  }
+  .player-board::-webkit-scrollbar { width: 4px; }
+  .player-board::-webkit-scrollbar-track { background: transparent; }
+  .player-board::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .ipl-player-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    transition: background 0.15s;
+    cursor: default;
+  }
+  .ipl-player-row:hover { background: var(--bg3); }
+  .ipl-player-row .pname { flex: 1; font-size: 14px; font-weight: 500; }
+  .ipl-player-row .pteam { font-size: 11px; color: var(--text3); }
+  .ipl-player-row .powner { font-size: 11px; color: var(--accent); font-weight: 500; }
+  .ipl-player-row.taken { opacity: 0.45; }
+  .team-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Draft pick input */
+  .pick-input-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .pick-autocomplete {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--r);
+    overflow: hidden;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .pick-autocomplete::-webkit-scrollbar { width: 4px; }
+  .pick-autocomplete::-webkit-scrollbar-thumb { background: var(--border2); }
+  .autocomplete-item {
+    padding: 11px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.1s;
+  }
+  .autocomplete-item:hover { background: var(--bg3); }
+  .autocomplete-item.disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* My picks */
+  .my-pick-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .round-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    width: 52px;
+    flex-shrink: 0;
+  }
+
+  /* ===== LEADERBOARD / DASHBOARD ===== */
+  .lb-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: var(--r);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    transition: all 0.2s;
+  }
+  .lb-row.rank-1 { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
+  .lb-row.rank-2 { border-color: rgba(192,192,192,0.3); }
+  .lb-row.rank-3 { border-color: rgba(205,127,50,0.3); }
+  .lb-rank {
+    font-family: var(--font-display);
+    font-size: 24px;
+    width: 36px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .lb-rank.r1 { color: var(--accent); }
+  .lb-rank.r2 { color: #c0c0c0; }
+  .lb-rank.r3 { color: #cd7f32; }
+  .lb-pts {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .lb-pts span { font-size: 11px; color: var(--text3); margin-left: 2px; }
+
+  .match-card {
+    padding: 14px 16px;
+    border-radius: var(--r);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .match-teams {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .match-meta { font-size: 12px; color: var(--text3); }
+
+  /* Player breakdown expand */
+  .lb-picks {
+    display: none;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lb-row.expanded .lb-picks { display: flex; }
+  .pick-chip {
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 12px;
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .pick-chip .pts { color: var(--accent3); font-weight: 600; margin-left: 4px; }
+
+  /* ===== ALERTS ===== */
+  .alert {
+    padding: 12px 16px;
+    border-radius: var(--r);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .alert-warn { background: rgba(245,166,35,0.1); border: 1px solid rgba(245,166,35,0.2); color: var(--accent); }
+  .alert-info { background: rgba(62,207,142,0.08); border: 1px solid rgba(62,207,142,0.2); color: var(--accent3); }
+  .alert-error { background: rgba(232,89,60,0.1); border: 1px solid rgba(232,89,60,0.2); color: var(--accent2); }
+
+  /* ===== DIVIDER ===== */
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    color: var(--text3); font-size: 12px;
+    margin: 20px 0;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ===== ROUND INDICATOR ===== */
+  .round-dots {
+    display: flex; gap: 8px; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .round-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border2);
+    transition: background 0.2s;
+  }
+  .round-dot.active { background: var(--accent); }
+  .round-dot.done { background: var(--accent3); }
+
+  /* ===== NAV BAR ===== */
+  .nav-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .nav-bar.visible { display: flex; }
+  .nav-logo {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    flex: 1;
+  }
+  .nav-code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text3);
+    letter-spacing: 2px;
+  }
+
+  /* ===== TOAST ===== */
+  #toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--r);
+    padding: 12px 20px;
+    font-size: 14px;
+    color: var(--text);
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ===== LOADING ===== */
+  .spinner {
+    width: 36px; height: 36px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 40px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== CONFETTI OVERLAY ===== */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 200;
+  }
+
+  /* ===== WARNING PULSE ===== */
+  @keyframes warn-pulse {
+    0%, 100% { border-color: rgba(232,89,60,0.3); }
+    50% { border-color: rgba(232,89,60,0.8); box-shadow: 0 0 20px rgba(232,89,60,0.2); }
+  }
+  .timer-warning { animation: warn-pulse 0.8s ease-in-out infinite; }
+
+  /* ===== MISC ===== */
+  .text-center { text-align: center; }
+  .text-muted { color: var(--text2); }
+  .text-xs { font-size: 12px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .mt-24 { margin-top: 24px; }
+  .mb-8 { margin-bottom: 8px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .flex-between { display: flex; align-items: center; justify-content: space-between; }
+  .flex-center { display: flex; align-items: center; gap: 10px; }
+  .flex-col { display: flex; flex-direction: column; gap: 8px; }
+</style>
+</head>
+<body>
+
+<!-- NAV BAR -->
+<nav class="nav-bar" id="nav-bar">
+  <span class="nav-logo">IPL RT</span>
+  <span class="nav-code" id="nav-code"></span>
+  <span class="badge badge-amber" id="nav-status">Lobby</span>
+</nav>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- CONFETTI -->
+<canvas id="confetti-canvas"></canvas>
+
+<div id="app">
+
+<!-- ============================================================
+     PAGE 1 · HOME
+============================================================ -->
+<div class="page active" id="page-home">
+  <div style="margin:auto; padding: 60px 0 20px;">
+    <div style="text-align:center; margin-bottom:48px;">
+      <div class="logo">IPL ROUND TABLE</div>
+      <div class="logo-sub">Fantasy Cricket League</div>
+    </div>
+
+    <div class="container">
+
+      <!-- CREATE GAME -->
+      <div class="card">
+        <div class="card-title">Create a new game</div>
+        <input type="text" id="host-name" placeholder="Your name" maxlength="20" style="margin-bottom:12px;"/>
+        <button class="btn btn-primary" onclick="createGame()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Create Game
+        </button>
+      </div>
+
+      <div class="divider">or join existing</div>
+
+      <!-- JOIN GAME -->
+      <div class="card">
+        <div class="card-title">Join a game</div>
+        <input type="text" id="join-name" placeholder="Your name" maxlength="20" style="margin-bottom:10px;"/>
+        <input type="text" id="join-code" placeholder="Enter 6-letter game code" maxlength="6"
+               style="text-transform:uppercase; letter-spacing:4px; font-family:var(--font-mono); margin-bottom:12px;"
+               oninput="this.value=this.value.toUpperCase()"/>
+        <button class="btn btn-secondary" onclick="joinGame()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v18h-6M10 17l5-5-5-5M15 12H3"/></svg>
+          Join Game
+        </button>
+      </div>
+
+      <div class="text-center text-xs text-muted" style="margin-top:16px; line-height:1.6;">
+        IPL 2025 · 14 matches · 4 picks per player<br/>
+        Scoring: 1 pt/run · 25 pts/wicket
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PAGE 2 · LOBBY
+============================================================ -->
+<div class="page" id="page-lobby" style="padding-top:80px;">
+  <div class="container">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="font-family:var(--font-display); font-size:32px; letter-spacing:2px; color:var(--text);">GAME LOBBY</div>
+      <div class="text-muted text-xs mt-8">Share the code with your friends</div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div class="card-title">Game code</div>
+      <div class="game-code" id="lobby-code" onclick="copyCode()" title="Click to copy">------</div>
+      <div class="text-xs text-muted mt-8">Click to copy · Share this with all players</div>
+    </div>
+
+    <div class="card">
+      <div class="flex-between mb-8">
+        <div class="card-title" style="margin:0;">Players joined</div>
+        <span class="badge badge-gray" id="player-count">0 / 8</span>
+      </div>
+      <div id="lobby-players"></div>
+    </div>
+
+    <div id="host-lobby-controls">
+      <div class="alert alert-info" id="lobby-wait-msg">Waiting for at least 2 players to join...</div>
+      <button class="btn btn-success" id="start-game-btn" onclick="startGame()" disabled>
+        Start Game &amp; Spin Wheel →
+      </button>
+    </div>
+    <div id="guest-lobby-wait" style="display:none;">
+      <div class="alert alert-warn">Waiting for the host to start the game...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PAGE 3 · SPIN WHEEL
+============================================================ -->
+<div class="page" id="page-spin" style="padding-top:80px;">
+  <div class="container">
+    <div style="text-align:center; margin-bottom:24px;">
+      <div style="font-family:var(--font-display); font-size:32px; letter-spacing:2px;">DRAFT ORDER WHEEL</div>
+      <div class="text-muted text-xs mt-8">Each player spins once to claim their draft position</div>
+    </div>
+
+    <!-- Whose turn -->
+    <div class="spin-status" id="spin-status-box">
+      <div class="text-xs text-muted" style="margin-bottom:4px; letter-spacing:2px; text-transform:uppercase;">Now spinning</div>
+      <div class="whose-turn" id="spin-whose-turn">—</div>
+    </div>
+
+    <!-- Wheel -->
+    <canvas id="wheel-canvas" width="340" height="340"></canvas>
+
+    <div style="margin-top:20px;">
+      <button class="btn btn-primary" id="spin-btn" onclick="doSpin()" disabled>
+        🎲 Spin the Wheel!
+      </button>
+    </div>
+
+    <!-- Rank list -->
+    <div class="card mt-16">
+      <div class="card-title">Draft order so far</div>
+      <div id="spin-rank-list"></div>
+      <div class="text-muted text-xs" id="spin-remaining-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PAGE 4 · DRAFT ROOM
+============================================================ -->
+<div class="page" id="page-draft" style="padding-top:80px; align-items:flex-start;">
+  <div class="draft-layout">
+
+    <!-- LEFT: Active pick area -->
+    <div>
+      <!-- Round indicator -->
+      <div class="round-dots" id="round-dots"></div>
+
+      <!-- Current picker -->
+      <div class="current-picker" id="current-picker-box">
+        <div class="text-xs text-muted" style="letter-spacing:2px; text-transform:uppercase; margin-bottom:4px;">Now picking · Round <span id="draft-round-num">1</span></div>
+        <div class="picker-name" id="draft-picker-name">—</div>
+      </div>
+
+      <!-- Timer -->
+      <div class="timer-ring" id="timer-ring">
+        <svg width="90" height="90" viewBox="0 0 90 90">
+          <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" stroke-width="4"/>
+          <circle id="timer-circle" cx="45" cy="45" r="38" fill="none"
+                  stroke="var(--accent)" stroke-width="4"
+                  stroke-dasharray="239" stroke-dashoffset="0"
+                  stroke-linecap="round"/>
+        </svg>
+        <div class="time-text" id="timer-display">120</div>
+      </div>
+
+      <!-- My pick input (only if it's your turn) -->
+      <div id="my-pick-area" style="display:none;">
+        <div class="pick-input-wrap">
+          <input type="text" id="pick-search" placeholder="Type a player name to search..."
+                 autocomplete="off" oninput="onPickSearch(this.value)"/>
+          <div class="pick-autocomplete" id="pick-autocomplete" style="display:none;"></div>
+        </div>
+        <button class="btn btn-success" id="confirm-pick-btn" onclick="confirmPick()" disabled>
+          ✓ Confirm Pick
+        </button>
+      </div>
+      <div id="waiting-area" style="display:none; text-align:center;">
+        <div class="alert alert-info">Waiting for <span id="waiting-for-name" style="font-weight:600;">—</span> to pick...</div>
+      </div>
+
+      <!-- My picks so far -->
+      <div class="card mt-16">
+        <div class="card-title">Your squad</div>
+        <div id="my-picks-list">
+          <div class="text-muted text-xs">No picks yet</div>
+        </div>
+      </div>
+
+      <!-- Warning area -->
+      <div id="autopick-warning" style="display:none;" class="alert alert-warn mt-16">
+        ⚠ Auto-pick in <span id="autopick-countdown">30</span>s — type a name to pick now!
+      </div>
+    </div>
+
+    <!-- RIGHT: Player board -->
+    <div>
+      <div class="player-board">
+        <div class="card-title">IPL Player Board</div>
+        <input type="text" id="board-search" placeholder="Search players..."
+               style="margin-bottom:12px;" oninput="filterBoard(this.value)"/>
+        <div id="player-board-list"></div>
+      </div>
+
+      <!-- All picks summary (collapsible) -->
+      <div class="card mt-16">
+        <div class="card-title">All picks this draft</div>
+        <div id="all-picks-summary"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     PAGE 5 · LIVE DASHBOARD
+============================================================ -->
+<div class="page" id="page-dashboard" style="padding-top:80px;">
+  <div class="container-wide">
+
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="font-family:var(--font-display); font-size:36px; letter-spacing:3px; color:var(--accent);">LEADERBOARD</div>
+      <div class="text-muted text-xs mt-8">IPL 2025 · Updated after every match</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 360px; gap:20px; align-items:start;">
+      <div>
+        <div class="card-title" style="margin-bottom:12px;">Live standings</div>
+        <div id="leaderboard-list"></div>
+        <div class="text-xs text-muted mt-8" id="last-updated">—</div>
+      </div>
+
+      <div>
+        <div class="card-title" style="margin-bottom:12px;">IPL 2025 Matches</div>
+        <div id="matches-list"></div>
+
+        <div class="mt-16" id="admin-score-panel" style="display:none;">
+          <div class="card">
+            <div class="card-title">Update player score</div>
+            <input type="text" id="score-player" placeholder="Player name" style="margin-bottom:8px;"/>
+            <div class="grid-2">
+              <input type="text" id="score-runs" placeholder="Runs" style="text-align:center;"/>
+              <input type="text" id="score-wkts" placeholder="Wickets" style="text-align:center;"/>
+            </div>
+            <button class="btn btn-primary mt-16" onclick="updatePlayerScore()">Update Score</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /#app -->
+
+<script>
+// ============================================================
+// CONFIG — Replace these with your actual Supabase values
+// ============================================================
+const SUPABASE_URL = 'https://uotkacnojvnxpigcjtjo.supabase.co';
+const SUPABASE_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdGthY25vanZueHBpZ2NqdGpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Mjg1OTAsImV4cCI6MjA4OTUwNDU5MH0.zcrZxJpVxpQ-YQXc7M-mzcNok8sviiH2KbL2Zeuo4dk';
+const CRICAPI_KEY  = '34d2716c-4bfe-456c-b75e-548f47f76eef'; // cricapi.com free tier
+
+// ============================================================
+// STATE
+// ============================================================
+let sb; // supabase client
+let gameCode = '';
+let myName   = '';
+let myId     = '';
+let isHost   = false;
+let gameId   = null;
+
+let players  = []; // [{id, name, rank}]
+let allPicks = {}; // { playerName: ownerName }
+let myPicks  = []; // array of ipl player names i've picked
+let playerScores = {}; // { iplPlayerName: {runs,wkts} }
+
+// Draft state
+let draftOrder    = []; // player names in snake order for all picks
+let draftIndex    = 0;  // current position in draftOrder
+let currentRound  = 1;
+let timerInterval = null;
+let timerSeconds  = 120;
+let selectedPick  = '';
+
+// Spin state
+let spinPlayers  = []; // names not yet spun
+let spinResults  = {}; // name -> rank
+let wheelNumbers = []; // remaining numbers on wheel
+let isSpinning   = false;
+
+// Realtime channels
+let gameChannel = null;
+
+// ============================================================
+// IPL 2025 PLAYER POOL
+// ============================================================
+const IPL_TEAMS = {
+  'MI':  { color: '#004BA0', name: 'Mumbai Indians' },
+  'CSK': { color: '#F4C300', name: 'Chennai Super Kings' },
+  'RCB': { color: '#EC1C24', name: 'Royal Challengers Bengaluru' },
+  'KKR': { color: '#3A225D', name: 'Kolkata Knight Riders' },
+  'SRH': { color: '#FF822A', name: 'Sunrisers Hyderabad' },
+  'DC':  { color: '#0078BC', name: 'Delhi Capitals' },
+  'PBKS':{ color: '#ED1C24', name: 'Punjab Kings' },
+  'RR':  { color: '#FF4081', name: 'Rajasthan Royals' },
+  'GT':  { color: '#1C2951', name: 'Gujarat Titans' },
+  'LSG': { color: '#A72056', name: 'Lucknow Super Giants' },
+};
+
+const IPL_PLAYERS = [
+  // MI
+  {name:'Rohit Sharma',     team:'MI', role:'BAT'},
+  {name:'Hardik Pandya',    team:'MI', role:'ALL'},
+  {name:'Jasprit Bumrah',   team:'MI', role:'BWL'},
+  {name:'Suryakumar Yadav', team:'MI', role:'BAT'},
+  {name:'Tilak Varma',      team:'MI', role:'BAT'},
+  {name:'Naman Dhir',       team:'MI', role:'ALL'},
+  {name:'Trent Boult',      team:'MI', role:'BWL'},
+  // CSK
+  {name:'MS Dhoni',         team:'CSK', role:'WK'},
+  {name:'Ruturaj Gaikwad',  team:'CSK', role:'BAT'},
+  {name:'Ravindra Jadeja',  team:'CSK', role:'ALL'},
+  {name:'Deepak Chahar',    team:'CSK', role:'BWL'},
+  {name:'Devon Conway',     team:'CSK', role:'BAT'},
+  {name:'Shivam Dube',      team:'CSK', role:'ALL'},
+  // RCB
+  {name:'Virat Kohli',      team:'RCB', role:'BAT'},
+  {name:'Faf du Plessis',   team:'RCB', role:'BAT'},
+  {name:'Glenn Maxwell',    team:'RCB', role:'ALL'},
+  {name:'Mohammed Siraj',   team:'RCB', role:'BWL'},
+  {name:'Yash Dayal',       team:'RCB', role:'BWL'},
+  // KKR
+  {name:'Shreyas Iyer',     team:'KKR', role:'BAT'},
+  {name:'Andre Russell',    team:'KKR', role:'ALL'},
+  {name:'Sunil Narine',     team:'KKR', role:'ALL'},
+  {name:'Varun Chakravarthy',team:'KKR',role:'BWL'},
+  {name:'Phil Salt',        team:'KKR', role:'WK'},
+  // SRH
+  {name:'Pat Cummins',      team:'SRH', role:'BWL'},
+  {name:'Travis Head',      team:'SRH', role:'BAT'},
+  {name:'Heinrich Klaasen', team:'SRH', role:'WK'},
+  {name:'Abhishek Sharma',  team:'SRH', role:'BAT'},
+  {name:'Bhuvneshwar Kumar',team:'SRH', role:'BWL'},
+  // DC
+  {name:'David Warner',     team:'DC', role:'BAT'},
+  {name:'Axar Patel',       team:'DC', role:'ALL'},
+  {name:'Rishabh Pant',     team:'DC', role:'WK'},
+  {name:'Anrich Nortje',    team:'DC', role:'BWL'},
+  // PBKS
+  {name:'Shikhar Dhawan',   team:'PBKS', role:'BAT'},
+  {name:'Sam Curran',       team:'PBKS', role:'ALL'},
+  {name:'Liam Livingstone', team:'PBKS', role:'ALL'},
+  {name:'Arshdeep Singh',   team:'PBKS', role:'BWL'},
+  // RR
+  {name:'Sanju Samson',     team:'RR', role:'WK'},
+  {name:'Jos Buttler',      team:'RR', role:'WK'},
+  {name:'Yuzvendra Chahal', team:'RR', role:'BWL'},
+  {name:'Shimron Hetmyer',  team:'RR', role:'BAT'},
+  {name:'Trent Boult',      team:'RR', role:'BWL'},
+  {name:'Yashasvi Jaiswal', team:'RR', role:'BAT'},
+  // GT
+  {name:'Shubman Gill',     team:'GT', role:'BAT'},
+  {name:'Mohammed Shami',   team:'GT', role:'BWL'},
+  {name:'Rashid Khan',      team:'GT', role:'BWL'},
+  {name:'David Miller',     team:'GT', role:'BAT'},
+  {name:'Wriddhiman Saha',  team:'GT', role:'WK'},
+  // LSG
+  {name:'KL Rahul',         team:'LSG', role:'WK'},
+  {name:'Marcus Stoinis',   team:'LSG', role:'ALL'},
+  {name:'Nicholas Pooran',  team:'LSG', role:'WK'},
+  {name:'Ravi Bishnoi',     team:'LSG', role:'BWL'},
+  {name:'Quinton de Kock',  team:'LSG', role:'WK'},
+];
+
+const IPL_MATCHES = [
+  {id:1,  home:'CSK', away:'RCB',  date:'Mar 22'},
+  {id:2,  home:'PBKS',away:'DC',   date:'Mar 23'},
+  {id:3,  home:'RR',  away:'KKR',  date:'Mar 24'},
+  {id:4,  home:'SRH', away:'MI',   date:'Mar 25'},
+  {id:5,  home:'GT',  away:'LSG',  date:'Mar 26'},
+  {id:6,  home:'CSK', away:'PBKS', date:'Mar 28'},
+  {id:7,  home:'MI',  away:'DC',   date:'Mar 29'},
+  {id:8,  home:'KKR', away:'RCB',  date:'Mar 30'},
+  {id:9,  home:'RR',  away:'SRH',  date:'Mar 31'},
+  {id:10, home:'GT',  away:'KKR',  date:'Apr 1'},
+  {id:11, home:'LSG', away:'MI',   date:'Apr 2'},
+  {id:12, home:'CSK', away:'DC',   date:'Apr 4'},
+  {id:13, home:'SRH', away:'RCB',  date:'Apr 5'},
+  {id:14, home:'PBKS',away:'RR',   date:'Apr 6'},
+];
+
+// ============================================================
+// UTILS
+// ============================================================
+function genCode(n=6) {
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:n},()=>c[Math.floor(Math.random()*c.length)]).join('');
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+function showToast(msg, duration=2800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const nav = document.getElementById('nav-bar');
+  nav.classList.toggle('visible', id !== 'home');
+}
+
+function setNavStatus(s, cls='badge-amber') {
+  const el = document.getElementById('nav-status');
+  el.textContent = s;
+  el.className = 'badge ' + cls;
+}
+
+function avatarColors(name) {
+  const hues = [0,30,60,120,180,210,270,300];
+  const h = hues[name.charCodeAt(0) % hues.length];
+  return `hsl(${h},55%,35%)`;
+}
+
+function avatarEl(name, size=36) {
+  const el = document.createElement('div');
+  el.className = 'avatar';
+  el.style.cssText = `background:${avatarColors(name)};color:#fff;width:${size}px;height:${size}px;`;
+  el.textContent = name.slice(0,2).toUpperCase();
+  return el;
+}
+
+// ============================================================
+// INIT SUPABASE
+// ============================================================
+function initSupabase() {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    // Demo mode — run fully in-memory without Supabase
+    return false;
+  }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return true;
+}
+
+// ============================================================
+// PAGE 1 · HOME
+// ============================================================
+async function createGame() {
+  const name = document.getElementById('host-name').value.trim();
+  if (!name) return showToast('Enter your name first');
+
+  myName = name;
+  myId   = genId();
+  isHost = true;
+  gameCode = genCode();
+
+  document.getElementById('nav-code').textContent = gameCode;
+  document.getElementById('lobby-code').textContent = gameCode;
+
+  const useSupa = initSupabase();
+  if (useSupa) {
+    const { data, error } = await sb.from('games').insert({
+      code: gameCode,
+      host_id: myId,
+      phase: 'lobby',
+      state: JSON.stringify({ players: [{id:myId,name,rank:null}], picks:{}, scores:{} })
+    }).select().single();
+    if (error) return showToast('Error creating game: ' + error.message);
+    gameId = data.id;
+  }
+
+  players = [{id:myId, name, rank:null}];
+  enterLobby();
+}
+
+async function joinGame() {
+  const name = document.getElementById('join-name').value.trim();
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (!name) return showToast('Enter your name first');
+  if (code.length !== 6) return showToast('Enter the 6-letter game code');
+
+  myName = name;
+  myId   = genId();
+  isHost = false;
+  gameCode = code;
+
+  document.getElementById('nav-code').textContent = gameCode;
+  document.getElementById('lobby-code').textContent = gameCode;
+
+  const useSupa = initSupabase();
+  if (useSupa) {
+    const { data: game } = await sb.from('games').select().eq('code', code).single();
+    if (!game) return showToast('Game not found!');
+    if (game.phase !== 'lobby') return showToast('Game already started!');
+    gameId = game.id;
+    const state = JSON.parse(game.state);
+    if (state.players.length >= 8) return showToast('Game is full (8 players max)');
+    state.players.push({id:myId,name,rank:null});
+    players = state.players;
+    await sb.from('games').update({ state: JSON.stringify(state) }).eq('id', gameId);
+  } else {
+    // Demo: just pretend you joined
+    players = [{id:'host', name:'Host', rank:null}, {id:myId, name, rank:null}];
+  }
+
+  enterLobby();
+}
+
+// ============================================================
+// PAGE 2 · LOBBY
+// ============================================================
+function enterLobby() {
+  showPage('lobby');
+  setNavStatus('Lobby', 'badge-amber');
+  renderLobbyPlayers();
+  subscribeToGame();
+
+  // Host controls
+  if (isHost) {
+    document.getElementById('host-lobby-controls').style.display = 'block';
+    document.getElementById('guest-lobby-wait').style.display = 'none';
+  } else {
+    document.getElementById('host-lobby-controls').style.display = 'none';
+    document.getElementById('guest-lobby-wait').style.display = 'block';
+  }
+}
+
+function renderLobbyPlayers() {
+  const list = document.getElementById('lobby-players');
+  list.innerHTML = '';
+  players.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'player-slot' + (p.id === myId ? ' you' : '');
+    row.appendChild(avatarEl(p.name));
+    const info = document.createElement('div');
+    info.innerHTML = `<div class="player-name">${p.name}${p.id===myId?' <span class="badge badge-amber" style="font-size:9px;">You</span>':''}</div>`;
+    row.appendChild(info);
+    if (players.indexOf(p)===0) {
+      const lbl = document.createElement('span');
+      lbl.className = 'badge badge-green';
+      lbl.textContent = 'Host';
+      row.appendChild(lbl);
+    }
+    list.appendChild(row);
+  });
+  document.getElementById('player-count').textContent = `${players.length} / 8`;
+  const btn = document.getElementById('start-game-btn');
+  const msg = document.getElementById('lobby-wait-msg');
+  btn.disabled = players.length < 2;
+  if (players.length >= 2) {
+    msg.textContent = `${players.length} players ready. You can start!`;
+    msg.className = 'alert alert-info';
+  } else {
+    msg.textContent = 'Waiting for at least 2 players to join...';
+  }
+}
+
+async function startGame() {
+  if (!isHost) return;
+  const useSupa = initSupabase();
+  if (useSupa) {
+    await sb.from('games').update({
+      phase: 'spin',
+      state: JSON.stringify({ players, picks:{}, scores:{} })
+    }).eq('id', gameId);
+  } else {
+    enterSpin();
+  }
+}
+
+// ============================================================
+// REALTIME SUBSCRIPTION
+// ============================================================
+function subscribeToGame() {
+  if (!sb) return;
+  if (gameChannel) sb.removeChannel(gameChannel);
+
+  gameChannel = sb.channel('game-'+gameCode)
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'games',
+      filter: `code=eq.${gameCode}`
+    }, payload => {
+      const game = payload.new;
+      const state = JSON.parse(game.state);
+      players      = state.players;
+      allPicks     = state.picks || {};
+      playerScores = state.scores || {};
+
+      if (game.phase === 'spin' && !['spin','draft','dashboard'].includes(currentPhase())) {
+        enterSpin();
+      } else if (game.phase === 'draft' && currentPhase() !== 'draft') {
+        enterDraft(state);
+      } else if (game.phase === 'dashboard') {
+        enterDashboard();
+      } else {
+        // Partial update within phase
+        if (currentPhase() === 'lobby') { players = state.players; renderLobbyPlayers(); }
+        if (currentPhase() === 'spin')  { syncSpinState(state); }
+        if (currentPhase() === 'draft') { syncDraftState(state); }
+        if (currentPhase() === 'dashboard') { renderLeaderboard(); }
+      }
+    })
+    .subscribe();
+}
+
+function currentPhase() {
+  const pages = ['home','lobby','spin','draft','dashboard'];
+  for (const p of pages) {
+    if (document.getElementById('page-'+p)?.classList.contains('active')) return p;
+  }
+  return 'home';
+}
+
+// ============================================================
+// PAGE 3 · SPIN WHEEL
+// ============================================================
+const WHEEL_COLORS = [
+  '#f5a623','#e8593c','#3ecf8e','#3b82f6','#a855f7',
+  '#ec4899','#14b8a6','#f97316','#22c55e','#ef4444',
+];
+
+let wheelCtx = null;
+let currentWheelNumbers = [];
+let wheelAngle = 0;
+
+function enterSpin() {
+  showPage('spin');
+  setNavStatus('Spin', 'badge-amber');
+  spinResults   = {};
+  spinPlayers   = players.map(p => p.name);
+
+  // Numbers = 1..N
+  wheelNumbers = players.map((_, i) => i + 1);
+  currentWheelNumbers = [...wheelNumbers];
+
+  const canvas = document.getElementById('wheel-canvas');
+  wheelCtx = canvas.getContext('2d');
+  drawWheel(currentWheelNumbers);
+  renderSpinStatus();
+  renderSpinRankList();
+}
+
+function drawWheel(nums) {
+  const canvas = document.getElementById('wheel-canvas');
+  const ctx = wheelCtx;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const r  = cx - 20;
+  const n  = nums.length;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (n === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#f0efe8';
+    ctx.font = 'bold 18px Bebas Neue';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('COMPLETE', cx, cy);
+    return;
+  }
+
+  const arc = (Math.PI * 2) / n;
+  for (let i = 0; i < n; i++) {
+    const start = wheelAngle + i * arc;
+    const end   = start + arc;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.closePath();
+    ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Label
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(start + arc / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Bebas Neue';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(nums[i], r - 18, 0);
+    ctx.restore();
+  }
+
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 28, 0, Math.PI*2);
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Pointer
+  ctx.beginPath();
+  ctx.moveTo(cx + r - 8, cy);
+  ctx.lineTo(cx + r + 18, cy - 9);
+  ctx.lineTo(cx + r + 18, cy + 9);
+  ctx.closePath();
+  ctx.fillStyle = '#f0efe8';
+  ctx.fill();
+}
+
+function renderSpinStatus() {
+  const notSpun = players.filter(p => !spinResults[p.name]);
+  const whosTurn = notSpun[0];
+  document.getElementById('spin-whose-turn').textContent = whosTurn ? whosTurn.name : 'All done!';
+  const btn = document.getElementById('spin-btn');
+  const isMyTurn = whosTurn && whosTurn.name === myName;
+  btn.disabled = !isMyTurn || isSpinning;
+  btn.textContent = isMyTurn ? '🎲 Spin the Wheel!' : (whosTurn ? `Waiting for ${whosTurn.name}...` : '✅ All spun!');
+}
+
+function renderSpinRankList() {
+  const list = document.getElementById('spin-rank-list');
+  list.innerHTML = '';
+  const sorted = Object.entries(spinResults).sort((a,b) => a[1]-b[1]);
+  sorted.forEach(([name, rank]) => {
+    const row = document.createElement('div');
+    row.className = 'player-slot';
+    const rb = document.createElement('div');
+    rb.className = 'rank-badge';
+    rb.textContent = rank;
+    row.appendChild(rb);
+    row.appendChild(avatarEl(name, 32));
+    const nm = document.createElement('div');
+    nm.className = 'player-name';
+    nm.textContent = name + (name === myName ? ' (You)' : '');
+    row.appendChild(nm);
+    list.appendChild(row);
+  });
+  const rem = players.length - sorted.length;
+  document.getElementById('spin-remaining-msg').textContent =
+    rem > 0 ? `${rem} player${rem>1?'s':''} yet to spin` : '';
+}
+
+function doSpin() {
+  if (isSpinning) return;
+  const notSpun = players.filter(p => !spinResults[p.name]);
+  if (!notSpun.length || notSpun[0].name !== myName) return;
+
+  isSpinning = true;
+  document.getElementById('spin-btn').disabled = true;
+
+  const totalRot  = 360 * (5 + Math.floor(Math.random()*5)) + Math.random()*360;
+  const duration  = 3000 + Math.random()*1500;
+  const start     = performance.now();
+  const startAngle= wheelAngle;
+  const targetRad = (totalRot * Math.PI) / 180;
+
+  function easeOut(t) { return 1 - Math.pow(1-t, 3); }
+
+  function frame(now) {
+    const elapsed = now - start;
+    const t = Math.min(elapsed / duration, 1);
+    const angle = startAngle + targetRad * easeOut(t);
+    wheelAngle = angle % (Math.PI * 2);
+    drawWheel(currentWheelNumbers);
+    if (t < 1) { requestAnimationFrame(frame); return; }
+
+    // Determine landed number
+    const n      = currentWheelNumbers.length;
+    const arc    = (Math.PI * 2) / n;
+    // Pointer is at angle=0 (right side); normalise wheel angle
+    const norm   = ((Math.PI*2) - (wheelAngle % (Math.PI*2))) % (Math.PI*2);
+    const idx    = Math.floor(norm / arc) % n;
+    const landed = currentWheelNumbers[idx];
+
+    // Remove from wheel
+    currentWheelNumbers = currentWheelNumbers.filter(x => x !== landed);
+    spinResults[myName] = landed;
+
+    // Update player rank
+    players = players.map(p => p.name === myName ? {...p, rank: landed} : p);
+
+    isSpinning = false;
+    drawWheel(currentWheelNumbers);
+    renderSpinStatus();
+    renderSpinRankList();
+    showToast(`🎉 ${myName} got rank #${landed}!`);
+
+    // Persist
+    persistSpinResult();
+  }
+  requestAnimationFrame(frame);
+}
+
+async function persistSpinResult() {
+  if (sb && gameId) {
+    const { data: game } = await sb.from('games').select().eq('id', gameId).single();
+    const state = JSON.parse(game.state);
+    state.players = state.players.map(p => p.name === myName ? {...p, rank: spinResults[myName]} : p);
+    await sb.from('games').update({ state: JSON.stringify(state) }).eq('id', gameId);
+  }
+
+  // Check if all have spun
+  const allSpun = players.every(p => spinResults[p.name] || p.rank !== null);
+  if (allSpun && isHost) {
+    setTimeout(() => proceedToDraft(), 1200);
+  }
+}
+
+function syncSpinState(state) {
+  state.players.forEach(p => {
+    if (p.rank) spinResults[p.name] = p.rank;
+  });
+  players = state.players;
+  currentWheelNumbers = players.map((_,i)=>i+1).filter(n => !Object.values(spinResults).includes(n));
+  drawWheel(currentWheelNumbers);
+  renderSpinStatus();
+  renderSpinRankList();
+
+  const allSpun = players.every(p => p.rank !== null);
+  if (allSpun && isHost) setTimeout(() => proceedToDraft(), 1200);
+}
+
+// ============================================================
+// PAGE 4 · DRAFT ROOM
+// ============================================================
+function buildSnakeOrder(sortedPlayers) {
+  // sortedPlayers: [{name, rank}] sorted by rank ascending
+  const order = [];
+  for (let round = 0; round < 4; round++) {
+    const fwd = round % 2 === 0;
+    const list = fwd ? [...sortedPlayers] : [...sortedPlayers].reverse();
+    list.forEach(p => order.push({name: p.name, round: round+1}));
+  }
+  return order;
+}
+
+async function proceedToDraft() {
+  const sorted = [...players].sort((a,b) => a.rank - b.rank);
+  draftOrder   = buildSnakeOrder(sorted);
+  draftIndex   = 0;
+  allPicks     = {};
+
+  if (sb && gameId) {
+    await sb.from('games').update({
+      phase: 'draft',
+      state: JSON.stringify({ players, picks: {}, scores: {}, draftOrder, draftIndex: 0 })
+    }).eq('id', gameId);
+  } else {
+    enterDraft({ players, picks:{}, scores:{}, draftOrder, draftIndex:0 });
+  }
+}
+
+function enterDraft(state) {
+  if (state.draftOrder) draftOrder = state.draftOrder;
+  if (state.draftIndex !== undefined) draftIndex = state.draftIndex;
+  if (state.picks) allPicks = state.picks;
+
+  showPage('draft');
+  setNavStatus('Draft', 'badge-red');
+  buildRoundDots();
+  renderPlayerBoard('');
+  renderAllPicksSummary();
+  updateDraftUI();
+  startDraftTimer();
+}
+
+function buildRoundDots() {
+  const el = document.getElementById('round-dots');
+  el.innerHTML = '';
+  for (let i=1; i<=4; i++) {
+    const d = document.createElement('div');
+    d.className = 'round-dot' + (i < currentRound ? ' done' : i === currentRound ? ' active' : '');
+    d.id = 'rd-'+i;
+    el.appendChild(d);
+  }
+}
+
+function updateDraftUI() {
+  if (draftIndex >= draftOrder.length) {
+    finishDraft(); return;
+  }
+  const cur = draftOrder[draftIndex];
+  currentRound = cur.round;
+  buildRoundDots();
+  document.getElementById('draft-round-num').textContent = currentRound;
+  document.getElementById('draft-picker-name').textContent = cur.name;
+
+  const isMe = cur.name === myName;
+  document.getElementById('my-pick-area').style.display   = isMe ? 'block' : 'none';
+  document.getElementById('waiting-area').style.display   = isMe ? 'none' : 'block';
+  if (!isMe) document.getElementById('waiting-for-name').textContent = cur.name;
+
+  selectedPick = '';
+  document.getElementById('pick-search').value = '';
+  document.getElementById('pick-autocomplete').style.display = 'none';
+  document.getElementById('confirm-pick-btn').disabled = true;
+  document.getElementById('autopick-warning').style.display = 'none';
+}
+
+let autopickWarnInterval = null;
+
+function startDraftTimer() {
+  clearInterval(timerInterval);
+  clearInterval(autopickWarnInterval);
+  timerSeconds = 120;
+  updateTimerDisplay(120, 120);
+  document.getElementById('timer-ring').classList.remove('timer-warning');
+  document.getElementById('autopick-warning').style.display = 'none';
+
+  timerInterval = setInterval(() => {
+    timerSeconds--;
+    updateTimerDisplay(timerSeconds, 120);
+
+    if (timerSeconds === 30) {
+      // Show warning + autopick countdown
+      const cur = draftOrder[draftIndex];
+      if (cur && cur.name === myName) {
+        document.getElementById('autopick-warning').style.display = 'block';
+        document.getElementById('timer-ring').classList.add('timer-warning');
+      }
+    }
+    if (timerSeconds === 0) {
+      clearInterval(timerInterval);
+      const cur = draftOrder[draftIndex];
+      if (cur && cur.name === myName) {
+        autoPickRandom();
+      }
+    }
+    if (timerSeconds <= 30 && timerSeconds > 0) {
+      document.getElementById('autopick-countdown').textContent = timerSeconds;
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay(sec, total) {
+  const pct  = sec / total;
+  const circ = 2 * Math.PI * 38;
+  const offset = circ * (1 - pct);
+  const circle = document.getElementById('timer-circle');
+  if (circle) {
+    circle.setAttribute('stroke-dashoffset', offset);
+    circle.setAttribute('stroke', sec <= 30 ? 'var(--accent2)' : 'var(--accent)');
+  }
+  document.getElementById('timer-display').textContent = sec;
+}
+
+function autoPickRandom() {
+  const available = IPL_PLAYERS.filter(p => !allPicks[p.name]);
+  if (!available.length) { advanceDraft('—'); return; }
+  const pick = available[Math.floor(Math.random() * available.length)];
+  selectedPick = pick.name;
+  showToast(`⚡ Auto-picked: ${pick.name}`);
+  confirmPick();
+}
+
+function onPickSearch(q) {
+  selectedPick = '';
+  document.getElementById('confirm-pick-btn').disabled = true;
+  const ac = document.getElementById('pick-autocomplete');
+  if (!q.trim()) { ac.style.display = 'none'; return; }
+  const matches = IPL_PLAYERS.filter(p =>
+    p.name.toLowerCase().includes(q.toLowerCase())
+  ).slice(0, 12);
+  if (!matches.length) { ac.style.display = 'none'; return; }
+  ac.innerHTML = '';
+  ac.style.display = 'block';
+  matches.forEach(p => {
+    const owner = allPicks[p.name];
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item' + (owner ? ' disabled' : '');
+    const dot = document.createElement('div');
+    dot.className = 'team-dot';
+    dot.style.background = IPL_TEAMS[p.team]?.color || '#888';
+    item.appendChild(dot);
+    const txt = document.createElement('span');
+    txt.style.flex = '1';
+    txt.innerHTML = `<span style="font-weight:500;">${p.name}</span> <span style="color:var(--text3);font-size:12px;">${p.team} · ${p.role}</span>`;
+    item.appendChild(txt);
+    if (owner) {
+      const ow = document.createElement('span');
+      ow.style.cssText = 'font-size:11px;color:var(--accent);';
+      ow.textContent = owner;
+      item.appendChild(ow);
+    } else {
+      item.onclick = () => {
+        selectedPick = p.name;
+        document.getElementById('pick-search').value = p.name;
+        ac.style.display = 'none';
+        document.getElementById('confirm-pick-btn').disabled = false;
+      };
+    }
+    ac.appendChild(item);
+  });
+}
+
+async function confirmPick() {
+  if (!selectedPick) return;
+  const cur = draftOrder[draftIndex];
+  if (!cur || cur.name !== myName) return;
+
+  clearInterval(timerInterval);
+  allPicks[selectedPick] = myName;
+  myPicks.push(selectedPick);
+  renderMyPicks();
+  advanceDraft(selectedPick);
+}
+
+async function advanceDraft(pickedName) {
+  draftIndex++;
+  renderPlayerBoard(document.getElementById('board-search').value);
+  renderAllPicksSummary();
+  updateDraftUI();
+  startDraftTimer();
+
+  if (sb && gameId) {
+    await sb.from('games').update({
+      state: JSON.stringify({ players, picks: allPicks, scores: playerScores, draftOrder, draftIndex })
+    }).eq('id', gameId);
+  }
+
+  if (draftIndex >= draftOrder.length) {
+    finishDraft();
+  }
+}
+
+function finishDraft() {
+  clearInterval(timerInterval);
+  showToast('🏏 Draft complete! Building your squad...', 2000);
+  setTimeout(async () => {
+    if (sb && gameId) {
+      await sb.from('games').update({ phase: 'dashboard' }).eq('id', gameId);
+    } else {
+      enterDashboard();
+    }
+  }, 2000);
+}
+
+function syncDraftState(state) {
+  if (state.draftIndex !== undefined) draftIndex = state.draftIndex;
+  if (state.picks) {
+    allPicks = state.picks;
+    // Update my picks
+    myPicks = Object.entries(allPicks).filter(([_,v])=>v===myName).map(([k])=>k);
+  }
+  renderPlayerBoard(document.getElementById('board-search').value);
+  renderMyPicks();
+  renderAllPicksSummary();
+  updateDraftUI();
+  startDraftTimer();
+}
+
+function renderPlayerBoard(q) {
+  const list = document.getElementById('player-board-list');
+  list.innerHTML = '';
+  const filtered = IPL_PLAYERS.filter(p =>
+    !q || p.name.toLowerCase().includes(q.toLowerCase())
+  );
+  filtered.forEach(p => {
+    const owner = allPicks[p.name];
+    const row = document.createElement('div');
+    row.className = 'ipl-player-row' + (owner ? ' taken' : '');
+    const dot = document.createElement('div');
+    dot.className = 'team-dot';
+    dot.style.background = IPL_TEAMS[p.team]?.color || '#888';
+    row.appendChild(dot);
+    const nm = document.createElement('div');
+    nm.innerHTML = `<div class="pname">${p.name}</div><div class="pteam">${IPL_TEAMS[p.team]?.name||p.team} · ${p.role}</div>`;
+    nm.style.flex = '1';
+    row.appendChild(nm);
+    if (owner) {
+      const ow = document.createElement('div');
+      ow.className = 'powner';
+      ow.textContent = owner === myName ? 'You' : owner;
+      row.appendChild(ow);
+    }
+    list.appendChild(row);
+  });
+}
+
+function filterBoard(q) {
+  renderPlayerBoard(q);
+}
+
+function renderMyPicks() {
+  const el = document.getElementById('my-picks-list');
+  if (!myPicks.length) { el.innerHTML = '<div class="text-muted text-xs">No picks yet</div>'; return; }
+  el.innerHTML = '';
+  const rounds = [[], [], [], []];
+  myPicks.forEach((name, i) => rounds[i] && rounds[i].push(name));
+
+  const myOrder = draftOrder.filter(d => d.name === myName);
+  myOrder.forEach((slot, i) => {
+    const pick = myPicks[i];
+    if (!pick) return;
+    const card = document.createElement('div');
+    card.className = 'my-pick-card';
+    const rl = document.createElement('div');
+    rl.className = 'round-label';
+    rl.textContent = `R${slot.round}`;
+    card.appendChild(rl);
+    const p = IPL_PLAYERS.find(x => x.name === pick);
+    const dot = document.createElement('div');
+    dot.className = 'team-dot';
+    dot.style.background = p ? IPL_TEAMS[p.team]?.color : '#888';
+    card.appendChild(dot);
+    const nm = document.createElement('div');
+    nm.style.flex = '1';
+    nm.innerHTML = `<div style="font-size:14px;font-weight:500;">${pick}</div>`;
+    if (p) nm.innerHTML += `<div style="font-size:11px;color:var(--text3);">${p.team}</div>`;
+    card.appendChild(nm);
+    el.appendChild(card);
+  });
+}
+
+function renderAllPicksSummary() {
+  const el = document.getElementById('all-picks-summary');
+  el.innerHTML = '';
+  const byOwner = {};
+  Object.entries(allPicks).forEach(([player, owner]) => {
+    if (!byOwner[owner]) byOwner[owner] = [];
+    byOwner[owner].push(player);
+  });
+  Object.entries(byOwner).forEach(([owner, picks]) => {
+    const block = document.createElement('div');
+    block.style.marginBottom = '10px';
+    block.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;">${owner}</div>`;
+    picks.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'pick-chip';
+      chip.style.display = 'inline-block';
+      chip.style.margin = '2px 4px 2px 0';
+      chip.textContent = p;
+      block.appendChild(chip);
+    });
+    el.appendChild(block);
+  });
+  if (!Object.keys(byOwner).length) {
+    el.innerHTML = '<div class="text-muted text-xs">No picks yet</div>';
+  }
+}
+
+// ============================================================
+// PAGE 5 · LIVE DASHBOARD
+// ============================================================
+function enterDashboard() {
+  showPage('dashboard');
+  setNavStatus('Live', 'badge-green');
+  renderLeaderboard();
+  renderMatches();
+  if (isHost) document.getElementById('admin-score-panel').style.display = 'block';
+  fetchCricScores();
+  // Poll every 5 mins
+  setInterval(fetchCricScores, 5 * 60 * 1000);
+}
+
+function calcPoints(iplPlayerName) {
+  const s = playerScores[iplPlayerName];
+  if (!s) return 0;
+  return (s.runs || 0) * 1 + (s.wkts || 0) * 25;
+}
+
+function totalPointsFor(ownerName) {
+  return Object.entries(allPicks)
+    .filter(([_, o]) => o === ownerName)
+    .reduce((sum, [p]) => sum + calcPoints(p), 0);
+}
+
+function renderLeaderboard() {
+  const el = document.getElementById('leaderboard-list');
+  el.innerHTML = '';
+  const owners = [...new Set(Object.values(allPicks)), ...players.map(p=>p.name)];
+  const uniq = [...new Set(owners)];
+  const sorted = uniq.map(name => ({
+    name,
+    pts: totalPointsFor(name),
+    picks: Object.entries(allPicks).filter(([_,o])=>o===name).map(([p])=>p)
+  })).sort((a,b) => b.pts - a.pts);
+
+  sorted.forEach((row, i) => {
+    const rank = i + 1;
+    const div = document.createElement('div');
+    div.className = 'lb-row rank-' + rank;
+    div.style.cursor = 'pointer';
+    div.onclick = () => div.classList.toggle('expanded');
+    div.innerHTML = `
+      <div class="lb-rank ${rank<=3?'r'+rank:''}">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</div>
+    `;
+    div.appendChild(avatarEl(row.name, 36));
+    const info = document.createElement('div');
+    info.style.flex = '1';
+    info.innerHTML = `<div style="font-weight:500;">${row.name}${row.name===myName?' <span class="badge badge-amber" style="font-size:9px;">You</span>':''}</div><div style="font-size:11px;color:var(--text3);">${row.picks.length} players</div>`;
+    div.appendChild(info);
+    const pts = document.createElement('div');
+    pts.className = 'lb-pts';
+    pts.innerHTML = `${row.pts}<span>pts</span>`;
+    div.appendChild(pts);
+
+    // Expandable picks
+    const picks = document.createElement('div');
+    picks.className = 'lb-picks';
+    row.picks.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'pick-chip';
+      const pts = calcPoints(p);
+      chip.innerHTML = `${p}<span class="pts">+${pts}</span>`;
+      picks.appendChild(chip);
+    });
+    div.appendChild(picks);
+    el.appendChild(div);
+  });
+
+  document.getElementById('last-updated').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString();
+}
+
+function renderMatches() {
+  const el = document.getElementById('matches-list');
+  el.innerHTML = '';
+  IPL_MATCHES.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'match-card';
+    div.innerHTML = `
+      <div class="match-teams flex-center">
+        <span class="badge badge-gray" style="font-family:var(--font-mono);font-size:11px;">${m.home}</span>
+        <span style="color:var(--text3);font-size:11px;">vs</span>
+        <span class="badge badge-gray" style="font-family:var(--font-mono);font-size:11px;">${m.away}</span>
+      </div>
+      <div class="match-meta mt-8">Match ${m.id} · ${m.date}</div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+async function fetchCricScores() {
+  if (!CRICAPI_KEY || CRICAPI_KEY === 'YOUR_CRICAPI_KEY') return;
+  try {
+    // CricAPI: fetch IPL match scores
+    const res = await fetch(`https://api.cricapi.com/v1/matches?apikey=${CRICAPI_KEY}&offset=0`);
+    const data = await res.json();
+    if (!data.data) return;
+
+    const iplMatches = data.data.filter(m =>
+      m.name?.includes('IPL') || m.matchType === 't20'
+    );
+
+    // For each match, fetch scorecard
+    for (const match of iplMatches.slice(0, 5)) {
+      if (match.matchStarted && match.score?.length) {
+        // Try to get player scores from series/scorecard endpoint
+        await fetchMatchScorecard(match.id);
+      }
+    }
+  } catch(e) {
+    console.log('CricAPI error:', e);
+  }
+}
+
+async function fetchMatchScorecard(matchId) {
+  try {
+    const res = await fetch(`https://api.cricapi.com/v1/match_scorecard?apikey=${CRICAPI_KEY}&id=${matchId}`);
+    const data = await res.json();
+    if (!data.data?.scorecard) return;
+
+    data.data.scorecard.forEach(innings => {
+      innings.batting?.forEach(b => {
+        const runs = parseInt(b.r) || 0;
+        if (!playerScores[b.batsman]) playerScores[b.batsman] = {runs:0, wkts:0};
+        playerScores[b.batsman].runs = (playerScores[b.batsman].runs || 0) + runs;
+      });
+      innings.bowling?.forEach(b => {
+        const wkts = parseInt(b.w) || 0;
+        if (!playerScores[b.bowler]) playerScores[b.bowler] = {runs:0, wkts:0};
+        playerScores[b.bowler].wkts = (playerScores[b.bowler].wkts || 0) + wkts;
+      });
+    });
+
+    if (sb && gameId) {
+      const { data: game } = await sb.from('games').select().eq('id', gameId).single();
+      const state = JSON.parse(game.state);
+      state.scores = playerScores;
+      await sb.from('games').update({ state: JSON.stringify(state) }).eq('id', gameId);
+    }
+    renderLeaderboard();
+  } catch(e) { console.log('scorecard error', e); }
+}
+
+async function updatePlayerScore() {
+  const name = document.getElementById('score-player').value.trim();
+  const runs = parseInt(document.getElementById('score-runs').value) || 0;
+  const wkts = parseInt(document.getElementById('score-wkts').value) || 0;
+  if (!name) return showToast('Enter player name');
+  if (!playerScores[name]) playerScores[name] = {runs:0, wkts:0};
+  playerScores[name].runs += runs;
+  playerScores[name].wkts += wkts;
+
+  if (sb && gameId) {
+    const { data: game } = await sb.from('games').select().eq('id', gameId).single();
+    const state = JSON.parse(game.state);
+    state.scores = playerScores;
+    await sb.from('games').update({ state: JSON.stringify(state) }).eq('id', gameId);
+  }
+  showToast(`Updated: ${name} +${runs}r +${wkts}w`);
+  renderLeaderboard();
+  document.getElementById('score-player').value='';
+  document.getElementById('score-runs').value='';
+  document.getElementById('score-wkts').value='';
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function copyCode() {
+  navigator.clipboard?.writeText(gameCode).then(() => showToast('Code copied!'));
+}
+
+// Close autocomplete on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.pick-input-wrap')) {
+    document.getElementById('pick-autocomplete').style.display = 'none';
+  }
+});
+
+// Dismiss autopick warning when user types
+document.getElementById('pick-search')?.addEventListener('input', () => {
+  document.getElementById('autopick-warning').style.display = 'none';
+  document.getElementById('timer-ring').classList.remove('timer-warning');
+});
+
+// ============================================================
+// INIT
+// ============================================================
+// Demo mode: auto-populate if no Supabase configured
+window.addEventListener('load', () => {
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    const demo = document.createElement('div');
+    demo.className = 'alert alert-warn';
+    demo.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:999;white-space:nowrap;font-size:12px;';
+    demo.textContent = '⚠ Demo mode — Configure Supabase for multiplayer';
+    document.body.appendChild(demo);
+    setTimeout(() => demo.remove(), 5000);
+  }
+});
+</script>
+</body>
+</html>
