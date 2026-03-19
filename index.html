@@ -608,8 +608,24 @@
         </button>
       </div>
 
+      <div class="divider">already played? view dashboard</div>
+
+      <!-- REJOIN / VIEW DASHBOARD -->
+      <div class="card">
+        <div class="card-title">Rejoin game / view dashboard</div>
+        <div class="text-xs text-muted mb-8" style="margin-bottom:12px;">Your name + game code act as your login — enter them to jump straight to the leaderboard.</div>
+        <input type="text" id="rejoin-name" placeholder="Your name (same as when you joined)" maxlength="20" style="margin-bottom:10px;"/>
+        <input type="text" id="rejoin-code" placeholder="6-letter game code" maxlength="6"
+               style="text-transform:uppercase; letter-spacing:4px; font-family:var(--font-mono); margin-bottom:12px;"
+               oninput="this.value=this.value.toUpperCase()"/>
+        <button class="btn btn-secondary" onclick="rejoinGame()" style="border-color:rgba(62,207,142,0.3); color:var(--accent3);">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          View Dashboard
+        </button>
+      </div>
+
       <div class="text-center text-xs text-muted" style="margin-top:16px; line-height:1.6;">
-        IPL 2025 · 14 matches · 4 picks per player<br/>
+        IPL 2026 · 14 matches · 4 picks per player<br/>
         Scoring: 1 pt/run · 25 pts/wicket
       </div>
     </div>
@@ -770,7 +786,7 @@
 
     <div style="text-align:center; margin-bottom:28px;">
       <div style="font-family:var(--font-display); font-size:36px; letter-spacing:3px; color:var(--accent);">LEADERBOARD</div>
-      <div class="text-muted text-xs mt-8">IPL 2025 · Updated after every match</div>
+      <div class="text-muted text-xs mt-8">IPL 2026 · Updated after every match</div>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 360px; gap:20px; align-items:start;">
@@ -781,7 +797,7 @@
       </div>
 
       <div>
-        <div class="card-title" style="margin-bottom:12px;">IPL 2025 Matches</div>
+        <div class="card-title" style="margin-bottom:12px;">IPL 2026 Matches</div>
         <div id="matches-list"></div>
 
         <div class="mt-16" id="admin-score-panel" style="display:none;">
@@ -802,6 +818,26 @@
 
 </div><!-- /#app -->
 
+<!-- ============================================================
+     MATCH DETAIL MODAL
+============================================================ -->
+<div id="match-modal-overlay" style="display:none; position:fixed; inset:0; z-index:300;
+     background:rgba(0,0,0,0.75); backdrop-filter:blur(4px);
+     align-items:center; justify-content:center; padding:16px;">
+  <div style="background:var(--surface); border:1px solid var(--border2); border-radius:var(--r-lg);
+              width:100%; max-width:520px; max-height:85vh; overflow-y:auto; padding:28px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+      <div>
+        <div style="font-family:var(--font-display); font-size:22px; letter-spacing:1px;" id="modal-match-title">—</div>
+        <div style="font-size:12px; color:var(--text3); margin-top:2px;" id="modal-match-date">—</div>
+      </div>
+      <button onclick="closeMatchModal()" style="background:var(--bg3); border:1px solid var(--border2);
+              color:var(--text2); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px;">✕ Close</button>
+    </div>
+    <div id="modal-match-body"></div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIG — Replace these with your actual Supabase values
@@ -809,7 +845,6 @@
 const SUPABASE_URL = 'https://uotkacnojvnxpigcjtjo.supabase.co';
 const SUPABASE_KEY ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdGthY25vanZueHBpZ2NqdGpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5Mjg1OTAsImV4cCI6MjA4OTUwNDU5MH0.zcrZxJpVxpQ-YQXc7M-mzcNok8sviiH2KbL2Zeuo4dk';
 const CRICAPI_KEY  = '34d2716c-4bfe-456c-b75e-548f47f76eef'; // cricapi.com free tier
-
 // ============================================================
 // STATE
 // ============================================================
@@ -843,7 +878,7 @@ let isSpinning   = false;
 let gameChannel = null;
 
 // ============================================================
-// IPL 2025 PLAYER POOL
+// IPL 2026 PLAYER POOL
 // ============================================================
 const IPL_TEAMS = {
   'MI':  { color: '#004BA0', name: 'Mumbai Indians' },
@@ -1058,6 +1093,49 @@ async function joinGame() {
   }
 
   enterLobby();
+}
+
+async function rejoinGame() {
+  const name = document.getElementById('rejoin-name').value.trim();
+  const code = document.getElementById('rejoin-code').value.trim().toUpperCase();
+  if (!name) return showToast('Enter your name');
+  if (code.length !== 6) return showToast('Enter the 6-letter game code');
+
+  const useSupa = initSupabase();
+  if (!useSupa) return showToast('Supabase not configured');
+
+  const { data: game, error } = await sb.from('games').select().eq('code', code).single();
+  if (error || !game) return showToast('Game not found — check the code');
+
+  const state = JSON.parse(game.state);
+  const matchedPlayer = state.players.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (!matchedPlayer) return showToast(`"${name}" was not in this game`);
+
+  // Restore identity
+  myName   = matchedPlayer.name;
+  myId     = matchedPlayer.id;
+  isHost   = (game.host_id === matchedPlayer.id);
+  gameCode = code;
+  gameId   = game.id;
+
+  players      = state.players;
+  allPicks     = state.picks    || {};
+  playerScores = state.scores   || {};
+  if (state.draftOrder) draftOrder = state.draftOrder;
+  if (state.draftIndex !== undefined) draftIndex = state.draftIndex;
+  myPicks = Object.entries(allPicks).filter(([_,v]) => v === myName).map(([k]) => k);
+
+  document.getElementById('nav-code').textContent = gameCode;
+  document.getElementById('lobby-code').textContent = gameCode;
+  saveSession();
+  subscribeToGame();
+
+  if      (game.phase === 'lobby')     { enterLobby(); }
+  else if (game.phase === 'spin')      { enterSpin(); }
+  else if (game.phase === 'draft')     { enterDraft(state); }
+  else if (game.phase === 'dashboard') { enterDashboard(); }
+
+  showToast(`Welcome back, ${myName}!`);
 }
 
 // ============================================================
@@ -1832,6 +1910,9 @@ function renderLeaderboard() {
 
   document.getElementById('last-updated').textContent =
     'Last updated: ' + new Date().toLocaleTimeString();
+
+  // Refresh match badges so "Scores in" indicator stays up to date
+  if (document.getElementById('matches-list').children.length) renderMatches();
 }
 
 function renderMatches() {
@@ -1840,17 +1921,135 @@ function renderMatches() {
   IPL_MATCHES.forEach(m => {
     const div = document.createElement('div');
     div.className = 'match-card';
+    div.style.cursor = 'pointer';
+    div.style.transition = 'border-color 0.15s, background 0.15s';
+    div.onmouseenter = () => { div.style.borderColor = 'rgba(245,166,35,0.3)'; div.style.background = 'rgba(245,166,35,0.04)'; };
+    div.onmouseleave = () => { div.style.borderColor = ''; div.style.background = ''; };
+    div.onclick = () => openMatchModal(m);
+
+    // Count how many drafted players are in these two teams
+    const drafted = Object.keys(allPicks).filter(pName => {
+      const p = IPL_PLAYERS.find(x => x.name === pName);
+      return p && (p.team === m.home || p.team === m.away);
+    });
+    const hasScores = drafted.some(pName => playerScores[pName]);
+
     div.innerHTML = `
-      <div class="match-teams flex-center">
+      <div class="match-teams flex-center" style="margin-bottom:6px;">
         <span class="badge badge-gray" style="font-family:var(--font-mono);font-size:11px;">${m.home}</span>
         <span style="color:var(--text3);font-size:11px;">vs</span>
         <span class="badge badge-gray" style="font-family:var(--font-mono);font-size:11px;">${m.away}</span>
+        <span style="margin-left:auto;">
+          ${hasScores
+            ? '<span class="badge badge-green" style="font-size:9px;">Scores in</span>'
+            : drafted.length > 0
+              ? `<span class="badge badge-amber" style="font-size:9px;">${drafted.length} picks</span>`
+              : '<span class="badge badge-gray" style="font-size:9px;">No picks</span>'
+          }
+        </span>
       </div>
-      <div class="match-meta mt-8">Match ${m.id} · ${m.date}</div>
+      <div class="match-meta">Match ${m.id} · ${m.date} <span style="color:var(--accent);font-size:10px;margin-left:6px;">→ tap to view</span></div>
     `;
     el.appendChild(div);
   });
 }
+
+function openMatchModal(match) {
+  document.getElementById('modal-match-title').textContent =
+    `${match.home} vs ${match.away}`;
+  document.getElementById('modal-match-date').textContent =
+    `Match ${match.id} · IPL 2026 · ${match.date}`;
+
+  const body = document.getElementById('modal-match-body');
+  body.innerHTML = '';
+
+  // Find all drafted players who play for these two teams
+  const relevant = Object.entries(allPicks)
+    .map(([iplName, owner]) => {
+      const p = IPL_PLAYERS.find(x => x.name === iplName);
+      if (!p) return null;
+      if (p.team !== match.home && p.team !== match.away) return null;
+      const sc = playerScores[iplName] || { runs: 0, wkts: 0 };
+      return { iplName, owner, team: p.team, role: p.role, runs: sc.runs || 0, wkts: sc.wkts || 0 };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b.runs + b.wkts*25) - (a.runs + a.wkts*25));
+
+  if (!relevant.length) {
+    body.innerHTML = '<div class="text-muted text-xs" style="text-align:center;padding:24px 0;">No players from this match were drafted in your game.</div>';
+    document.getElementById('match-modal-overlay').style.display = 'flex';
+    return;
+  }
+
+  // Group by team
+  [match.home, match.away].forEach(teamCode => {
+    const teamPlayers = relevant.filter(r => r.team === teamCode);
+    if (!teamPlayers.length) return;
+
+    const teamColor = IPL_TEAMS[teamCode]?.color || '#888';
+    const teamName  = IPL_TEAMS[teamCode]?.name  || teamCode;
+
+    const section = document.createElement('div');
+    section.style.marginBottom = '20px';
+    section.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${teamColor};flex-shrink:0;"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text2);letter-spacing:1px;text-transform:uppercase;">${teamName}</div>
+      </div>
+    `;
+
+    teamPlayers.forEach(r => {
+      const pts = r.runs * 1 + r.wkts * 25;
+      const hasData = r.runs > 0 || r.wkts > 0;
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;padding:10px 12px;
+        border-radius:8px;background:var(--bg3);border:1px solid var(--border);margin-bottom:6px;`;
+
+      // Avatar
+      const av = avatarEl(r.owner, 30);
+      row.appendChild(av);
+
+      // Names
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.innerHTML = `
+        <div style="font-size:14px;font-weight:500;">${r.iplName}</div>
+        <div style="font-size:11px;color:var(--text3);">Owned by <span style="color:var(--accent);">${r.owner === myName ? 'You' : r.owner}</span> · ${r.role}</div>
+      `;
+      row.appendChild(info);
+
+      // Score breakdown
+      const scoreDiv = document.createElement('div');
+      scoreDiv.style.cssText = 'text-align:right;';
+      if (hasData) {
+        let breakdown = [];
+        if (r.runs > 0) breakdown.push(`<span style="color:var(--text2);font-size:12px;">${r.runs} runs</span>`);
+        if (r.wkts > 0) breakdown.push(`<span style="color:var(--text2);font-size:12px;">${r.wkts} wkt${r.wkts>1?'s':''}</span>`);
+        scoreDiv.innerHTML = `
+          <div style="font-family:var(--font-mono);font-size:16px;font-weight:500;color:var(--accent3);">+${pts} pts</div>
+          <div style="font-size:11px;color:var(--text3);">${breakdown.join(' · ')}</div>
+        `;
+      } else {
+        scoreDiv.innerHTML = `<div style="font-size:12px;color:var(--text3);">No data yet</div>`;
+      }
+      row.appendChild(scoreDiv);
+      section.appendChild(row);
+    });
+
+    body.appendChild(section);
+  });
+
+  document.getElementById('match-modal-overlay').style.display = 'flex';
+}
+
+function closeMatchModal() {
+  document.getElementById('match-modal-overlay').style.display = 'none';
+}
+
+// Close modal on overlay click
+document.getElementById('match-modal-overlay')?.addEventListener('click', function(e) {
+  if (e.target === this) closeMatchModal();
+});
 
 async function fetchCricScores() {
   if (!CRICAPI_KEY || CRICAPI_KEY === 'YOUR_CRICAPI_KEY') return;
