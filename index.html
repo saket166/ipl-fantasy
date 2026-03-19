@@ -987,13 +987,11 @@ function avatarEl(name, size=36) {
 }
 
 // ============================================================
-// INIT SUPABASE
+// INIT SUPABASE — called once, never again
 // ============================================================
 function initSupabase() {
-  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-    // Demo mode — run fully in-memory without Supabase
-    return false;
-  }
+  if (sb) return true; // already initialised — reuse same client
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') return false;
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   return true;
 }
@@ -1069,7 +1067,6 @@ function enterLobby() {
   showPage('lobby');
   setNavStatus('Lobby', 'badge-amber');
   renderLobbyPlayers();
-  subscribeToGame();
 
   // Host controls
   if (isHost) {
@@ -1079,6 +1076,11 @@ function enterLobby() {
     document.getElementById('host-lobby-controls').style.display = 'none';
     document.getElementById('guest-lobby-wait').style.display = 'block';
   }
+
+  // Start realtime + polling, then do one immediate fetch
+  // so host sees players without waiting for first 3s poll tick
+  subscribeToGame();
+  pollGameState();
 }
 
 function renderLobbyPlayers() {
@@ -1113,8 +1115,7 @@ function renderLobbyPlayers() {
 
 async function startGame() {
   if (!isHost) return;
-  const useSupa = initSupabase();
-  if (useSupa) {
+  if (sb && gameId) {
     await sb.from('games').update({
       phase: 'spin',
       state: JSON.stringify({ players, picks:{}, scores:{} })
@@ -1125,44 +1126,107 @@ async function startGame() {
 }
 
 // ============================================================
-// REALTIME SUBSCRIPTION
+// REALTIME SUBSCRIPTION + POLLING FALLBACK
 // ============================================================
+let pollInterval = null;
+
 function subscribeToGame() {
   if (!sb) return;
-  if (gameChannel) sb.removeChannel(gameChannel);
 
-  gameChannel = sb.channel('game-'+gameCode)
+  // 1. Remove any existing channel cleanly
+  if (gameChannel) {
+    sb.removeChannel(gameChannel);
+    gameChannel = null;
+  }
+
+  // 2. Clear any existing poll
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+  }
+
+  // 3. Set up Supabase Realtime channel
+  //    Listen for both INSERT and UPDATE so no event is missed
+  gameChannel = sb.channel('game-' + gameCode)
     .on('postgres_changes', {
-      event: 'UPDATE', schema: 'public', table: 'games',
+      event:  '*',           // INSERT + UPDATE + DELETE
+      schema: 'public',
+      table:  'games',
       filter: `code=eq.${gameCode}`
     }, payload => {
       const game = payload.new;
-      const state = JSON.parse(game.state);
-      players      = state.players;
-      allPicks     = state.picks || {};
-      playerScores = state.scores || {};
-
-      if (game.phase === 'spin' && !['spin','draft','dashboard'].includes(currentPhase())) {
-        enterSpin();
-      } else if (game.phase === 'draft' && currentPhase() !== 'draft') {
-        enterDraft(state);
-      } else if (game.phase === 'dashboard') {
-        enterDashboard();
-      } else {
-        // Partial update within phase
-        if (currentPhase() === 'lobby') { players = state.players; renderLobbyPlayers(); }
-        if (currentPhase() === 'spin')  { syncSpinState(state); }
-        if (currentPhase() === 'draft') { syncDraftState(state); }
-        if (currentPhase() === 'dashboard') { renderLeaderboard(); }
-      }
+      if (!game) return;
+      handleGameUpdate(game);
     })
-    .subscribe();
+    .subscribe(status => {
+      console.log('Realtime status:', status);
+    });
+
+  // 4. Polling fallback — fetch game state every 3 seconds
+  //    This guarantees updates even if realtime lags or misses an event
+  pollInterval = setInterval(() => pollGameState(), 3000);
+}
+
+async function pollGameState() {
+  if (!sb || !gameCode) return;
+  try {
+    const { data: game, error } = await sb
+      .from('games')
+      .select('phase, state')
+      .eq('code', gameCode)
+      .single();
+    if (error || !game) return;
+    handleGameUpdate(game);
+  } catch(e) { /* silent */ }
+}
+
+function handleGameUpdate(game) {
+  let state;
+  try { state = typeof game.state === 'string' ? JSON.parse(game.state) : game.state; }
+  catch(e) { return; }
+
+  const newPlayers = state.players || [];
+  const phase      = game.phase;
+  const myPhase    = currentPhase();
+
+  // Always sync core state
+  allPicks     = state.picks    || {};
+  playerScores = state.scores   || {};
+
+  // Only update players array if count changed or new names appeared
+  // (avoids unnecessary re-renders)
+  const playerCountChanged = newPlayers.length !== players.length;
+  const playerNamesChanged = newPlayers.map(p=>p.name).join() !== players.map(p=>p.name).join();
+  if (playerCountChanged || playerNamesChanged) {
+    players = newPlayers;
+  }
+
+  // ---- Phase transitions ----
+  if (phase === 'spin' && myPhase === 'lobby') {
+    stopPolling(); enterSpin(); return;
+  }
+  if (phase === 'draft' && myPhase !== 'draft') {
+    stopPolling(); enterDraft(state); return;
+  }
+  if (phase === 'dashboard' && myPhase !== 'dashboard') {
+    stopPolling(); enterDashboard(); return;
+  }
+
+  // ---- Same-phase live updates ----
+  if (myPhase === 'lobby')     { renderLobbyPlayers(); }
+  if (myPhase === 'spin')      { syncSpinState(state); }
+  if (myPhase === 'draft')     { syncDraftState(state); }
+  if (myPhase === 'dashboard') { renderLeaderboard(); }
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 }
 
 function currentPhase() {
   const pages = ['home','lobby','spin','draft','dashboard'];
   for (const p of pages) {
-    if (document.getElementById('page-'+p)?.classList.contains('active')) return p;
+    if (document.getElementById('page-' + p)?.classList.contains('active')) return p;
   }
   return 'home';
 }
@@ -1884,11 +1948,67 @@ document.getElementById('pick-search')?.addEventListener('input', () => {
 });
 
 // ============================================================
+// SESSION PERSISTENCE — survive page refresh
+// ============================================================
+function saveSession() {
+  sessionStorage.setItem('ipl_session', JSON.stringify({
+    myName, myId, isHost, gameCode, gameId
+  }));
+}
+
+async function restoreSession() {
+  const raw = sessionStorage.getItem('ipl_session');
+  if (!raw) return false;
+  try {
+    const s = JSON.parse(raw);
+    if (!s.gameCode || !s.myName) return false;
+
+    myName   = s.myName;
+    myId     = s.myId;
+    isHost   = s.isHost;
+    gameCode = s.gameCode;
+    gameId   = s.gameId;
+
+    const useSupa = initSupabase();
+    if (!useSupa) return false;
+
+    // Fetch current game state from Supabase
+    const { data: game, error } = await sb.from('games').select()
+      .eq('code', gameCode).single();
+    if (error || !game) { sessionStorage.removeItem('ipl_session'); return false; }
+
+    const state  = JSON.parse(game.state);
+    players      = state.players  || [];
+    allPicks     = state.picks    || {};
+    playerScores = state.scores   || {};
+    if (state.draftOrder) draftOrder = state.draftOrder;
+    if (state.draftIndex !== undefined) draftIndex = state.draftIndex;
+    myPicks = Object.entries(allPicks).filter(([_,v])=>v===myName).map(([k])=>k);
+
+    document.getElementById('nav-code').textContent = gameCode;
+    document.getElementById('lobby-code').textContent = gameCode;
+
+    // Resume the correct phase
+    subscribeToGame();
+    if      (game.phase === 'lobby')     { enterLobby(); }
+    else if (game.phase === 'spin')      { enterSpin(); }
+    else if (game.phase === 'draft')     { enterDraft(state); }
+    else if (game.phase === 'dashboard') { enterDashboard(); }
+
+    showToast(`Welcome back, ${myName}!`);
+    return true;
+  } catch(e) {
+    sessionStorage.removeItem('ipl_session');
+    return false;
+  }
+}
+
+// ============================================================
 // INIT
 // ============================================================
-// Demo mode: auto-populate if no Supabase configured
-window.addEventListener('load', () => {
-  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+window.addEventListener('load', async () => {
+  const restored = await restoreSession();
+  if (!restored && SUPABASE_URL === 'YOUR_SUPABASE_URL') {
     const demo = document.createElement('div');
     demo.className = 'alert alert-warn';
     demo.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:999;white-space:nowrap;font-size:12px;';
